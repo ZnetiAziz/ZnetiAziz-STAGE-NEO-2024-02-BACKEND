@@ -8,43 +8,96 @@ namespace ExpenseTrackingApp.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class ExpensesController : ControllerBase
+    public class ExpenseController : ControllerBase
     {
-        private readonly ExpenseContext _context;
-
-        public ExpensesController(ExpenseContext context)
-        {
-            _context = context;
-        }
+        private static List<Expense> expenses = new List<Expense>();
+        private static List<Employee> employees = new List<Employee>();
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Expense>>> GetExpenses()
+        public ActionResult<IEnumerable<Expense>> GetExpenses()
         {
-            return await _context.Expenses.Include(e => e.Employee).ToListAsync();
+            return Ok(expenses);
         }
 
         [HttpGet("{id}")]
-        public async Task<ActionResult<Expense>> GetExpense(int id)
+        public ActionResult<Expense> GetExpense(int id)
         {
-            var expense = await _context.Expenses.Include(e => e.Employee).FirstOrDefaultAsync(e => e.Id == id);
-
+            var expense = expenses.FirstOrDefault(e => e.Id == id);
             if (expense == null)
             {
                 return NotFound();
             }
-
-            return expense;
+            return Ok(expense);
         }
 
         [HttpPost]
-        public async Task<ActionResult<Expense>> PostExpense(Expense expense)
+        public ActionResult<Expense> CreateExpense([FromBody] Expense expense)
         {
-            _context.Expenses.Add(expense);
-            await _context.SaveChangesAsync();
+            var employee = employees.FirstOrDefault(e => e.Id == expense.EmployeeId);
+            if (employee == null)
+            {
+                return BadRequest("Employee not found.");
+            }
 
+            expense.Id = expenses.Count > 0 ? expenses.Max(e => e.Id) + 1 : 1;
+            expense.Status = "En attente"; // Définir le statut par défaut
+            expenses.Add(expense);
             return CreatedAtAction(nameof(GetExpense), new { id = expense.Id }, expense);
         }
 
-        
+        [HttpPut("{id}")]
+        public ActionResult UpdateExpense(int id, [FromBody] Expense expense)
+        {
+            var existingExpense = expenses.FirstOrDefault(e => e.Id == id);
+            if (existingExpense == null)
+            {
+                return NotFound();
+            }
+
+            var employee = employees.FirstOrDefault(e => e.Id == expense.EmployeeId);
+            if (employee == null)
+            {
+                return BadRequest("Employee not found.");
+            }
+
+            existingExpense.type = expense.type;
+            existingExpense.Amount = expense.Amount;
+            existingExpense.Date = expense.Date;
+            existingExpense.Status = expense.Status;
+            existingExpense.EmployeeId = expense.EmployeeId;
+
+            return NoContent();
+        }
+
+        [HttpPatch("{id}/status")]
+        public ActionResult UpdateExpenseStatus(int id, [FromQuery] string status)
+        {
+            var existingExpense = expenses.FirstOrDefault(e => e.Id == id);
+            if (existingExpense == null)
+            {
+                return NotFound();
+            }
+
+            if (status != "Acceptée" && status != "Rejetée")
+            {
+                return BadRequest("Invalid status. Valid statuses are 'Acceptée' or 'Rejetée'.");
+            }
+
+            existingExpense.Status = status;
+
+            return NoContent();
+        }
+
+        [HttpDelete("{id}")]
+        public ActionResult DeleteExpense(int id)
+        {
+            var expense = expenses.FirstOrDefault(e => e.Id == id);
+            if (expense == null)
+            {
+                return NotFound();
+            }
+            expenses.Remove(expense);
+            return NoContent();
+        }
     }
 }
